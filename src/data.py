@@ -7,7 +7,12 @@ that the model can eat.
 Run `pytest tests/test_data.py` after you fill them in.
 """
 
+from pathlib import Path
+
 import numpy as np
+from PIL import Image
+from torchvision import transforms
+from torchvision.transforms import InterpolationMode
 
 # Files with any other extension should be ignored.
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
@@ -20,6 +25,15 @@ RESIZE = 256                    # the shorter side is resized to this
 CROP = 224                      # then the square in the middle is cut out
 MEAN = (0.485, 0.456, 0.406)    # red, green, blue
 STD = (0.229, 0.224, 0.225)     # red, green, blue
+
+# Steps 2 to 6 of prepare_image, in one object. This is the same pipeline as
+# torchvision's ResNet18_Weights.IMAGENET1K_V1, so the numbers match exactly.
+_TO_RESNET = transforms.Compose([
+    transforms.Resize(RESIZE, interpolation=InterpolationMode.BILINEAR),
+    transforms.CenterCrop(CROP),
+    transforms.ToTensor(),
+    transforms.Normalize(MEAN, STD),
+])
 
 
 def prepare_image(image):
@@ -50,7 +64,15 @@ def prepare_image(image):
     The web page does these same six steps in JavaScript. If your version is
     different, the self test badge at the top of your page turns red.
     """
-    raise NotImplementedError("Problem 2: fill in prepare_image")
+    # 1. Colour: grayscale and transparent PNGs become three channels too.
+    image = image.convert("RGB")
+    # 2. Resize the shorter side to RESIZE, keeping the shape (bilinear).
+    # 3. Cut out the middle CROP x CROP square.
+    # 4. Divide by 255.
+    # 5. Subtract MEAN[c] and divide by STD[c] for each channel c.
+    # 6. Put the channels first, so the shape is (3, CROP, CROP).
+    tensor = _TO_RESNET(image)
+    return tensor.numpy().astype(np.float32, copy=False)
 
 
 def load_folder(root):
@@ -83,7 +105,35 @@ def load_folder(root):
     Memory: every image becomes 3 x 224 x 224 numbers of 4 bytes, about 0.6 MB.
     750 images is about 450 MB. That fits on Colab and on most laptops.
     """
-    raise NotImplementedError("Problem 2: fill in load_folder")
+    root = Path(root)
+    # One sub-folder per class; the folder name is the class name.
+    class_names = sorted(d.name for d in root.iterdir() if d.is_dir())
+
+    images, labels, paths = [], [], []
+    for label, name in enumerate(class_names):
+        # sorted() so that two runs give the same order.
+        files = sorted(
+            p for p in (root / name).iterdir()
+            if p.is_file() and p.suffix.lower() in IMAGE_SUFFIXES
+        )
+        for path in files:
+            try:
+                with Image.open(path) as image:
+                    prepared = prepare_image(image)
+            except Exception:
+                # A broken file or something that is not really an image.
+                continue
+            images.append(prepared)
+            labels.append(label)
+            paths.append(path)
+
+    if not images:
+        return (np.zeros((0, 3, CROP, CROP), dtype=np.float32),
+                np.zeros((0,), dtype=np.int64), class_names, [])
+
+    X = np.stack(images).astype(np.float32, copy=False)
+    y = np.asarray(labels, dtype=np.int64)
+    return X, y, class_names, paths
 
 
 def split_train_test(X, y, paths, test_ratio=0.2, seed=0):
@@ -102,4 +152,25 @@ def split_train_test(X, y, paths, test_ratio=0.2, seed=0):
         up with a class that has no test images at all, and then your accuracy
         number means nothing.
     """
-    raise NotImplementedError("Problem 2: fill in split_train_test")
+    y = np.asarray(y)
+    rng = np.random.default_rng(seed)
+
+    train_rows, test_rows = [], []
+    # Split inside each class, so every class lands on both sides no matter
+    # how the shuffle falls. A class with a single image can only go to train.
+    for label in np.unique(y):
+        rows = np.where(y == label)[0]
+        rows = rng.permutation(rows)
+        if len(rows) < 2:
+            train_rows.extend(rows.tolist())
+            continue
+        n_test = int(round(len(rows) * test_ratio))
+        n_test = max(1, min(n_test, len(rows) - 1))
+        test_rows.extend(rows[:n_test].tolist())
+        train_rows.extend(rows[n_test:].tolist())
+
+    train_rows = np.asarray(sorted(train_rows))
+    test_rows = np.asarray(sorted(test_rows))
+
+    return (X[train_rows], y[train_rows], [paths[i] for i in train_rows],
+            X[test_rows], y[test_rows], [paths[i] for i in test_rows])
