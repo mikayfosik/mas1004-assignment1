@@ -1,3 +1,50 @@
+# Urban Messages — AI Visual Classifier
+
+*What does AI see in the streets?*
+
+An interactive image classification project exploring how artificial intelligence distinguishes three forms of urban visual communication: **graffiti, street posters, and stickers**.
+
+**[Try the live classifier](https://mikayfosik.github.io/mas1004-assignment1/)**
+
+## About the Project
+
+Urban Messages explores whether a machine learning model can recognize different types of street art, even when they share similar visual features or appear together in the same urban space.
+
+Built as part of the **Data & AI course at Sogang University (Fall 2026)**.
+
+## How It Works
+
+- **Model:** ResNet18, pretrained on ImageNet and fine-tuned on a custom dataset
+- **Categories:** Graffiti, Street Posters, Stickers
+- **Final training dataset:** 415 images after manual cleaning
+- **Deployment:** ONNX model running directly in the browser
+- **Interface:** Upload an image, use a webcam, or draw something to explore the predictions
+
+## Results
+
+| Evaluation | Accuracy |
+|---|---|
+| Original model, internal test | 97.8% |
+| Cleaned model, internal test | 92.9% |
+| Original model, independent images | 75.9% |
+| Cleaned model, independent images | 79.3% |
+
+The project also explores how changes in visual style, image composition, and background influence the model's predictions.
+
+## Built With
+
+Python · PyTorch · ResNet18 · ONNX · HTML/CSS/JavaScript · GitHub Pages
+
+---
+
+**Created by Kim Sofia | Sogang University | 2026**
+
+---
+
+## Original Assignment Instructions
+
+
+
 # Assignment 1: Train an image classifier on your own images
 
 MAS1004 Data & AI, 2026 Fall
